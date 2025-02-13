@@ -1,0 +1,113 @@
+local fov = 25
+local aimSpeed = 1 -- Kecepatan aim (1 = instan, 0 = sangat lambat)
+local maxTargetDistance = 10000
+00 -- Maksimal jarak target dalam satuan stud (opsional)
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Cam = workspace.CurrentCamera
+
+-- Setup FOV visualization
+local FOVring = Drawing.new("Circle")
+FOVring.Visible = true
+FOVring.Thickness = 2
+FOVring.Color = Color3.fromRGB(255, 0, 0)
+FOVring.Filled = false
+FOVring.Radius = fov
+FOVring.Position = Cam.ViewportSize / 2
+
+-- Function to check if game has teams
+local function hasTeams()
+    return LocalPlayer.Team ~= nil
+end
+
+-- Function to validate if a player is a valid target
+local function isValidTarget(player)
+    if player == LocalPlayer then return false end
+    if not player.Character then return false end
+    local head = player.Character:FindFirstChild("Head")
+    local humanoid = player.Character:FindFirstChild("Humanoid")
+    if not head or not humanoid then return false end
+    if humanoid.Health <= 0 then return false end
+
+    -- Only target enemies if the game has teams
+    if hasTeams() and player.Team == LocalPlayer.Team then
+        return false
+    end
+
+    return true
+end
+
+-- Function to get the closest player based on 3D distance and FOV
+local function getBestTarget()
+    local bestTarget = nil
+    local closestDistance = math.huge
+    local bestFovDistance = math.huge
+    local screenCenter = Cam.ViewportSize / 2
+    local localPosition = LocalPlayer.Character and LocalPlayer.Character.PrimaryPart and LocalPlayer.Character.PrimaryPart.Position or Vector3.zero
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if isValidTarget(player) then
+            local head = player.Character.Head
+            local headPos, onScreen = Cam:WorldToViewportPoint(head.Position)
+
+            if onScreen then
+                local distance3D = (head.Position - localPosition).Magnitude
+                local fovDistance = (Vector2.new(headPos.X, headPos.Y) - screenCenter).Magnitude
+
+                if distance3D < maxTargetDistance and fovDistance < fov then
+                    -- Prioritizing based on closeness to LocalPlayer first, then by FOV distance
+                    if distance3D < closestDistance or (distance3D == closestDistance and fovDistance < bestFovDistance) then
+                        closestDistance = distance3D
+                        bestFovDistance = fovDistance
+                        bestTarget = player
+                    end
+                end
+            end
+        end
+    end
+
+    return bestTarget
+end
+
+-- Function to smoothly aim at target
+local function smoothAim(target)
+    if not target or not target.Character then return end
+    local head = target.Character:FindFirstChild("Head")
+    if not head then return end
+
+    local lookVector = (head.Position - Cam.CFrame.Position).Unit
+    local interpolatedLook = Cam.CFrame.Position + lookVector:Lerp((head.Position - Cam.CFrame.Position).Unit, aimSpeed)
+    Cam.CFrame = CFrame.new(Cam.CFrame.Position, interpolatedLook)
+end
+
+-- Update FOV ring position
+local function updateDrawings()
+    FOVring.Position = Cam.ViewportSize / 2
+    FOVring.Radius = fov
+end
+
+-- Cleanup function
+local function cleanup()
+    FOVring:Remove()
+    RunService:UnbindFromRenderStep("AimbotLoop")
+end
+
+-- Key input handling
+local function onKeyDown(input)
+    if input.KeyCode == Enum.KeyCode.Delete then
+        cleanup()
+    end
+end
+
+-- Main loop
+RunService:BindToRenderStep("AimbotLoop", Enum.RenderPriority.Camera.Value, function()
+    updateDrawings()
+    local bestTarget = getBestTarget()
+    if bestTarget then
+        smoothAim(bestTarget)
+    end
+end)
+
+UserInputService.InputBegan:Connect(onKeyDown)
