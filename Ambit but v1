@@ -1,7 +1,6 @@
 local fov = 25
-local aimSpeed = 1 -- Kecepatan aim (1 = instan, 0 = sangat lambat)
-local maxTargetDistance = 10000
-00 -- Maksimal jarak target dalam satuan stud (opsional)
+local aimSpeed = 0.9 -- Kecepatan aim (1 = instan, 0 = sangat lambat)
+local maxTargetDistance = 1000000 -- Maksimal jarak target dalam satuan stud (opsional)
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
